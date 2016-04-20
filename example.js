@@ -1,90 +1,48 @@
-var Ringpop = require('ringpop');
+var express = require('ringpop/node_modules/express');
 var TChannel = require('ringpop/node_modules/tchannel');
+var Ringpop = require('ringpop');
 
-function Cluster(opts) {
-    this.name = opts.name;
-    this.size = opts.size;
-    this.basePort = opts.basePort;
-    this.bootstrapNodes = [];
+var tchannel = new TChannel();
+var subChannel = tchannel.makeSubChannel({
+    serviceName: 'ringpop'
+});
 
-    // Create the bootstrap list of nodes that'll
-    // be used to seed Ringpop for its join request.
-    for (var i = 0; i < this.size; i++) {
-        this.bootstrapNodes.push('10.0.0.7:' + (this.basePort + i));
-    }
+// The IP addresses should more dynamic
+var host = '10.0.0.7';
+var port = 3000;
+
+var bootstrapNodes = ['10.0.0.7:3000'];
+
+var ringpop = new Ringpop({
+    app: 'dispatch',
+    hostPort: host + ':' + port,
+    channel: subChannel
+});
+ringpop.setupChannel();
+tchannel.listen(port, host, onListening);
+
+function onListening() {
+    ringpop.bootstrap(bootstrapNodes, onBootstrap);
 }
 
-Cluster.prototype.launch = function launch(callback) {
-    var self = this;
-    var done = after(self.size, callback);
-
-    for (var i = 0; i < this.size; i++) {
-        var addr = this.bootstrapNodes[i];
-        var addrParts = addr.split(':');
-
-        var tchannel = new TChannel();
-        var ringpop = new Ringpop({
-            app: this.name,
-            hostPort: addr,
-            channel: tchannel.makeSubChannel({
-                serviceName: 'ringpop',
-                trace: false
-            })
-        });
-        ringpop.setupChannel();
-
-        // First make sure TChannel is accepting connections.
-        tchannel.listen(+addrParts[1], addrParts[0], listenCb(ringpop));
+function onBootstrap(err) {
+    if (err) {
+        return;
     }
 
-
-    function listenCb(ringpop) {
-        // When TChannel is listening, bootstrap Ringpop. It'll
-        // try to join its friends in the bootstrap list.
-        return function onListen() {
-            ringpop.bootstrap(self.bootstrapNodes, done);
-        };
-    }
-};
-
-// IGNORE THIS! It's a little utility function that invokes
-// a callback after a specified number of invocations
-// of its shim.
-function after(count, callback) {
-    var countdown = count;
-
-    return function shim(err) {
-        if (typeof callback !== 'function') return;
-
-        if (err) {
-            callback(err);
-            callback = null;
-            return;
-        }
-
-        if (--countdown === 0) {
-            callback();
-            callback = null;
-        }
-    };
+    // Start listening for application traffic
+    createHttpServers();
 }
 
-if (require.main === module) {
-    // Launch a Ringpop cluster of arbitrary size.
-    var cluster = new Cluster({
-        name: 'mycluster',
-        size: 2,
-        basePort: 3000
+function createHttpServers() {
+    var http = express();
+
+    http.get('/', function (req, res) {
+        console.log('what am i');
+        res.send('hello');
     });
 
-    // When all nodes have been bootstrapped, your
-    // Ringpop cluster will be ready for use.
-    cluster.launch(function onLaunch(err) {
-        if (err) {
-            console.error('Error: failed to launch cluster');
-            process.exit(1);
-        }
-
-        console.log('Ringpop cluster is ready!');
+    http.listen(6000, function onListen() {
+        console.log('HTTP server is listening on ' + 6000);   
     });
 }
