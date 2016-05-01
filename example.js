@@ -1,6 +1,7 @@
 var express = require('ringpop/node_modules/express');
 var TChannel = require('ringpop/node_modules/tchannel');
 var Ringpop = require('ringpop');
+var handlerUtil = require('./handlerUtil.js');
 
 var tchannel = new TChannel();
 var subChannel = tchannel.makeSubChannel({
@@ -35,14 +36,21 @@ function onBootstrap(err) {
 }
 
 function createHttpServers() {
-    var http = express();
+    var httpHandler = express();
 
-    http.get('/', function (req, res) {
-        console.log('what am i');
-        res.send('hello');
+    httpHandler.get('/', function (req, res) {
+        console.log('GET A REQUEST');
+
+        handlerUtil.updateDriverStatus(req, res);
     });
 
-    http.listen(6000, function onListen() {
+    httpHandler.post();
+    
+    httpHandler.put();
+
+    httpHandler.delete();
+
+    httpHandler.listen(6000, function onListen() {
         console.log('HTTP server is listening on ' + 6000);   
     });
 }
